@@ -1,10 +1,10 @@
 # GAN
 
+Personal repository to learn about different types of GAN models using Keras.
+
 <p align="center">
     <img src="https://github.com/RajK853/GAN/blob/main/assets/mnist_gan.gif" width="640"\>
 </p>
-
-Personal repository to learn about different types of GAN models using Keras.
 
 ## Conda setup
 1. Clone this repo.

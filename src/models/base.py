@@ -1,10 +1,10 @@
 import os
 import numpy as np
+from time import time
 from datetime import datetime
 from collections import defaultdict
 from rich.console import Console
-from tensorflow.compat.v1.keras import callbacks
-
+from tensorflow.compat.v1.keras import callbacks, backend
 
 
 class BaseGAN:
@@ -103,6 +103,7 @@ class BaseGAN:
         return {**dis_result, **gen_result}
 
     def train(self, epochs=100, batch_size=32, evaluate_interval=10):
+        start_time = time()
         for model in self.models:
             self.tensorboard_callback.set_model(model)
         train_per_epoch = np.math.ceil(self.dataset_size/batch_size)
@@ -127,7 +128,9 @@ class BaseGAN:
         self.save_meta_data(meta_data)
         self.save_models()
         self.save_log()
-        self.console.rule("Training finished")
+        backend.clear_session()
+        elapsed_time = (time() - start_time)/60
+        self.console.rule(f"Training finished in {elapsed_time:.1f} minutes")
 
     def store_logs(self, log_dict):
         for k, v in log_dict.items():

@@ -10,5 +10,9 @@ def load_mnist_data():
     # Scale images to the [0, 1] range
     train_x = train_x.astype("float32")/255.0
     test_x = test_x.astype("float32")/255.0
-    print(f"# Data shape: {train_x.shape}.")
+    # Reshape labels
+    train_y = train_y.reshape(-1, 1)
+    test_y = test_y.reshape(-1, 1)
+    print(f"# Train data shape: {train_x.shape}.")
+    print(f"# Train label shape: {train_y.shape}.")
     return (train_x, train_y), (test_x, test_y)

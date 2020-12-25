@@ -1,4 +1,6 @@
+import numpy as np
 from tensorflow.compat.v1.keras import layers, optimizers, Model, Input
+from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
 
 from . import BaseGAN
 
@@ -6,42 +8,86 @@ from . import BaseGAN
 class GAN(BaseGAN):
     def __init__(self, *args, **kwargs):
         super(GAN, self).__init__(*args, **kwargs)
-        self.latent_in = Input(shape=self.latent_size, name="latent_input", dtype="float32")
+        # Initialize inputs
+        self.latent_in = Input(shape=(self.latent_size, ), name="latent_input", dtype="float32")
         self.img_in = Input(shape=self.img_shape, name="image_input", dtype="float32")
-        
-        self.dis_model = self.load_discriminator()
-        opt = optimizers.Adam(learning_rate=3e-4, beta_1=0.5)
-        self.dis_model.compile(optimizer=opt, loss="binary_crossentropy", metrics=["acc"])
-        
-        self.gen_model = self.load_generator()
-        
-        self.dis_model.trainable = False
-        img_out = self.gen_model([self.latent_in])
-        prob_out = self.dis_model(img_out)
-        self.gan_model = Model(inputs=[self.latent_in], outputs=[prob_out])
-        self.gan_model.compile(optimizer=opt, loss="binary_crossentropy")
-        
-    def load_generator(self):
-        x = layers.Dense(7*7*64, activation="relu", kernel_regularizer="l2")(self.latent_in)
+        # Initialize optimizers
+        dis_opt = optimizers.Adam(learning_rate=3e-4, beta_1=0.5, name="discriminator_opt")
+        combined_opt = optimizers.Adam(learning_rate=3e-4, beta_1=0.5, name="combined_opt")
+        # Load models
+        self.gen_model = self.load_generator(self.latent_in)
+        self.dis_model = self.load_discriminator(self.img_in, dis_opt)
+        self.combined_model = self.load_combined_model(self.latent_in, combined_opt)
+        self.models = [self.gen_model, self.dis_model, self.combined_model]
+
+    def load_generator(self, latent_in):
+        x = layers.Dense(7*7*64, activation="relu", kernel_regularizer="l2")(latent_in)
         x = layers.Reshape((7, 7, 64))(x)
         x = layers.Conv2D(filters=64, kernel_size=3, activation="relu", padding="same", kernel_regularizer="l2")(x)
         x = layers.UpSampling2D()(x)
         x = layers.Conv2DTranspose(filters=32, kernel_size=5, activation="relu", padding="same", kernel_regularizer="l2")(x)
         x = layers.UpSampling2D()(x)
-        img = layers.Conv2D(filters=1, kernel_size=3, padding="same", activation="sigmoid")(x)
-        model = Model(inputs=[self.latent_in], outputs=[img])
+        img_out = layers.Conv2D(filters=1, kernel_size=3, padding="same", activation="sigmoid", name="image_output")(x)
+        model = Model(inputs=[latent_in], outputs=[img_out], name="generator")
         return model
     
-    def load_discriminator(self, opt="adam"):
-        x = layers.Conv2D(filters=32, kernel_size=3, activation="relu", kernel_regularizer="l2")(self.img_in)
+    def load_discriminator(self, img_in, opt="adam"):
+        x = layers.Conv2D(filters=32, kernel_size=3, activation="relu", kernel_regularizer="l2")(img_in)
         x = layers.Conv2D(filters=64, kernel_size=5, activation="relu", kernel_regularizer="l2")(x)
         x = layers.Flatten()(x)
         x = layers.Dense(100, activation="relu", kernel_regularizer="l2")(x)
         x = layers.Dense(100, activation="relu", kernel_regularizer="l2")(x)
-        """x = layers.Dense(32, activation="relu", kernel_regularizer="l2")(x)
-        sx = layers.Dense(32, activation="tanh", kernel_regularizer="l2")(x)
-        x = layers.Multiply()([sx, x])"""
-        probs = layers.Dense(1, activation="sigmoid")(x)
-        model = Model(inputs=[self.img_in], outputs=[probs])
+        label_out = layers.Dense(1, activation="sigmoid", name="binary_prob_output")(x)
+        model = Model(inputs=[img_in], outputs=[label_out], name="discriminator")
+        model.compile(optimizer=opt, loss="binary_crossentropy", metrics=["acc"])
         return model
+
+    def load_combined_model(self, latent_in, opt="adam"):
+        self.dis_model.trainable = False
+        img_out = self.gen_model.output
+        label_out = self.dis_model(img_out)
+        model = Model(inputs=[latent_in], outputs=[label_out], name="combined")
+        model.compile(optimizer=opt, loss="binary_crossentropy")
+        return model
+
+    def generate_images(self, batch_size):
+        latent_vectors = self.sample_latent(batch_size)
+        gen_imgs = self.gen_model.predict(latent_vectors)
+        return gen_imgs
+
+    def generate_feed_dict(self, batch_size):
+        # Generate required data
+        indexes = self.indexes[self.data_index:self.data_index+batch_size]
+        batch_size = min(len(indexes), batch_size)
+        real_imgs = self.dataset[indexes]
+        latent_vectors = self.sample_latent(batch_size)
+        fake_imgs = self.gen_model.predict(latent_vectors)
+        ones_labels = np.ones((batch_size, 1))
+        zeros_labels = np.zeros((batch_size, 1))
+        # Clear batch_feed_dict
+        self._batch_feed_dict.clear()
+        # Update feed_data_dict with discriminator inputs and outputs
+        self._batch_feed_dict["dis_inputs"] = [np.concatenate([fake_imgs, real_imgs], axis=0)]
+        self._batch_feed_dict["dis_outputs"] = [np.concatenate([zeros_labels, ones_labels], axis=0)]
+        # (Combined) generator inputs and outputs
+        self._batch_feed_dict["gen_inputs"] = [latent_vectors]
+        self._batch_feed_dict["gen_outputs"] = [ones_labels]
     
+    def process_dis_result(self, result):
+        dis_loss, dis_acc = result
+        return {"dis_loss": dis_loss, "dis_acc": dis_acc}
+
+    def process_gen_result(self, result):
+        return {"gen_loss": result}
+
+    def define_progress_bar(self):
+        # In the task.fields[var], a valid var string value is obtained as a kwarg from one of the given methods calls: p_bar.add_task() & p_bar.update()  
+        step_text_fmt = (":: Epoch: [cyan]({task.fields[epoch]}/{task.fields[total_epoch]})[/cyan] :: dis (loss, acc): [cyan]({task.fields[dis_loss]:.4f}, {task.fields[dis_acc]:.4f})[/cyan] "
+                         ":: gen loss: [cyan]{task.fields[gen_loss]:.4f}[/cyan]")
+        self.p_bar = Progress(TextColumn("{task.description}"),
+                         BarColumn(complete_style="bold yellow", finished_style="bold cyan"),
+                         "[progress.percentage]{task.percentage:>3.1f}%",
+                         ":: Time left:",
+                         TimeRemainingColumn(),
+                         TextColumn(step_text_fmt),
+                         refresh_per_second=2)

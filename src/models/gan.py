@@ -69,9 +69,13 @@ class GAN(BaseGAN):
         # Update feed_data_dict with discriminator inputs and outputs
         self._batch_feed_dict["dis_inputs"] = [np.concatenate([fake_imgs, real_imgs], axis=0)]
         self._batch_feed_dict["dis_outputs"] = [np.concatenate([zeros_labels, ones_labels], axis=0)]
-        # (Combined) generator inputs and outputs
-        self._batch_feed_dict["gen_inputs"] = [latent_vectors]
-        self._batch_feed_dict["gen_outputs"] = [ones_labels]
+        # As the discriminator is trained on generated and sampled batches with each's size = batch_size,
+        # we are generating extra batches here to also train the generator on total of 2*batch_size.
+        extra_latent_vectors = self.sample_latent(batch_size)
+        gan_latent_vectors = np.concatenate([latent_vectors, extra_latent_vectors], axis=0)
+        # Update feed_data_dict with combined_model inputs and outputs
+        self._batch_feed_dict["gen_inputs"] = [gan_latent_vectors]
+        self._batch_feed_dict["gen_outputs"] = [np.ones((2*batch_size, 1))]
     
     def process_dis_result(self, result):
         dis_loss, dis_acc = result
@@ -86,7 +90,7 @@ class GAN(BaseGAN):
                          ":: gen loss: [cyan]{task.fields[gen_loss]:.4f}[/cyan]")
         self.p_bar = Progress(TextColumn("{task.description}"),
                          BarColumn(complete_style="bold yellow", finished_style="bold cyan"),
-                         "[progress.percentage]{task.percentage:>3.1f}%",
+                         "[progress.percentage]{task.percentage:>3.2f}%",
                          ":: Time left:",
                          TimeRemainingColumn(),
                          TextColumn(step_text_fmt),

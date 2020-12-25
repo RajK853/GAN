@@ -19,10 +19,13 @@ Personal repository to learn about different types of GAN models using Keras.
   ```
 ## Implementations
 
+**Example:**
+
 ```shell
-python train.py once $MODEL_TYPE
+python train.py GAN ACGAN --epochs=100 --batch_size=128
 ```
-Here `$MODEL_TYPE` is the name of one of the given GAN models.
+The above command will train `GAN` and `ACGAN` models for 100 **epochs** with a **batch size** of 128.
+> Use `--help` command to list out all the possible parameters.
 
 ### GAN
 Implementation of normal *Generative Adversarial Network*.  

@@ -20,7 +20,7 @@ Personal repository to learn about different types of GAN models using Keras.
 ## Implementations
 
 ```shell
-python train.py --model=$MODEL_TYPE
+python train.py once $MODEL_TYPE
 ```
 Here `$MODEL_TYPE` is the name of one of the given GAN models.
 

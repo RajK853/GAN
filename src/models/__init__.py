@@ -6,5 +6,7 @@ deprecation._PRINT_DEPRECATION_WARNINGS = False
 
 from .base import BaseGAN
 from .gan import GAN
+from .acgan import ACGAN
+from .bigan import BiGAN
 
-__all__ = ["BaseGAN", "GAN"]
+__all__ = ["BaseGAN", "GAN", "ACGAN", "BiGAN"]

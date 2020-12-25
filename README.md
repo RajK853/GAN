@@ -1,4 +1,9 @@
 # GAN
+
+<p align="center">
+    <img src="assets/mnist_gan.gif" width="640"\>
+</p>
+
 Personal repository to learn about different types of GAN models using Keras.
 
 ## Conda setup

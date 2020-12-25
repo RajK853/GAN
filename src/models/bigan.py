@@ -83,7 +83,6 @@ class BiGAN(BaseGAN):
         fake_imgs = self.gen_model.predict([latent_vectors])
 
         encoded_latent_vectors = self.encoder_model.predict(real_imgs)
-
         ones_labels = np.ones((batch_size, 1))
         zeros_labels = np.zeros((batch_size, 1))
         # Clear batch_feed_dict
@@ -91,6 +90,7 @@ class BiGAN(BaseGAN):
         # Update feed_data_dict with discriminator inputs and outputs
         self._batch_feed_dict["dis_inputs"] = [np.concatenate([fake_imgs, real_imgs], axis=0), np.concatenate([latent_vectors, encoded_latent_vectors], axis=0)]
         self._batch_feed_dict["dis_outputs"] = [np.concatenate([zeros_labels, ones_labels], axis=0)]
+        # TODO: Does it makes sense to sample additional real image data to train the encoder_model on 2*batch_size?
         # (Combined) generator inputs and outputs
         self._batch_feed_dict["gen_inputs"] = [real_imgs, latent_vectors]
         self._batch_feed_dict["gen_outputs"] = [zeros_labels, ones_labels]   # Combined_layer outputs = [P(E(z)=1|x, z), P(G(z)=1|x, z)]?? TODO: Confirm it

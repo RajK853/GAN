@@ -1,5 +1,7 @@
 # GAN
 
+[Binder](https://mybinder.org/v2/gh/RajK853/GAN/main)  
+
 Personal repository to learn about different types of GAN models using Keras.
 
 <p align="center">

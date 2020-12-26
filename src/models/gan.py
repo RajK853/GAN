@@ -94,4 +94,4 @@ class GAN(BaseGAN):
                          ":: Time left:",
                          TimeRemainingColumn(),
                          TextColumn(step_text_fmt),
-                         refresh_per_second=2)
+                         auto_refresh=False)

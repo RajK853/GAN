@@ -119,7 +119,7 @@ class BaseGAN:
                     # TODO: Implement code to log train results
                     self.tensorboard_callback.on_train_batch_end(batch_iter, logs=log_dict)
                     self.store_logs(log_dict)
-                    self.p_bar.update(task, advance=1, visible=True, epoch=epoch, **log_dict)
+                    self.p_bar.update(task, advance=1, visible=True, refresh=True, epoch=epoch, **log_dict)
                 if (epoch == epochs) or (epoch%evaluate_interval == 0):
                     self.save_images(epoch)
         print()

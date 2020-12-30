@@ -1,6 +1,6 @@
 # GAN
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]](https://colab.research.google.com/drive/1Xh1dr_jE4rBBZv0HXTr7h3aO-a1cyO_p#scrollTo=NZlJZJKaQewN)  
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Xh1dr_jE4rBBZv0HXTr7h3aO-a1cyO_p#scrollTo=NZlJZJKaQewN)  
 
 Personal repository to learn about different types of GAN models using Keras.
 

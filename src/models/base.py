@@ -30,6 +30,8 @@ class BaseGAN:
         self.dis_model = None
         self.gen_model = None
         self.combined_mode = None
+        # Progress bar display text format
+        self.progress_fmt = None
         # Data sampler variables
         self.data_index = 0
         self.indexes = np.arange(self.dataset_size, dtype="uint32")

@@ -7,7 +7,7 @@ from . import BaseGAN
 class BiGAN(BaseGAN):
     def __init__(self, *args, **kwargs):
         super(BiGAN, self).__init__(*args, **kwargs)
-        self.progress_fmt = "Epoch: ({epoch}/{total_epoch}) | dis (loss, acc): ({dis_loss:.4f}, {dis_acc:.4f}) - gen loss: {gen_loss:.4f}"
+        self.progress_fmt = "Epoch: ({epoch}/{total_epoch}) | dis (loss, acc): ({dis_loss:.4f}, {dis_acc:.4f}) | gen loss: {gen_loss:.4f}"
         # Initialize inputs
         self.label_in = Input(shape=(1, ), name="label_input", dtype="int32")
         self.latent_in = Input(shape=(self.latent_size, ), name="latent_input", dtype="float32")
@@ -32,9 +32,7 @@ class BiGAN(BaseGAN):
         return model
 
     def load_generator(self, latent_in):
-        x = layers.Dense(7*7*16, use_bias=False, kernel_regularizer="l2")(latent_in)
-        x = layers.BatchNormalization()(x)
-        x = layers.ReLU()(x)
+        x = layers.Dense(7*7*16, activation="relu", kernel_regularizer="l2")(latent_in)
         x = layers.Reshape((7, 7, 16))(x)
         x = layers.Conv2D(filters=16, kernel_size=5, activation="relu", padding="same", kernel_regularizer="l2")(x)
         x = layers.UpSampling2D()(x)
@@ -45,13 +43,12 @@ class BiGAN(BaseGAN):
         return model
     
     def load_discriminator(self, img_in, latent_in, opt="adam"):
-        x = layers.Conv2D(filters=32, kernel_size=3, use_bias=False, kernel_regularizer="l2")(img_in)
-        x = layers.BatchNormalization()(x)
-        x = layers.ReLU()(x)
+        x = layers.Conv2D(filters=32, kernel_size=3, activation="relu", kernel_regularizer="l2")(img_in)
         x = layers.Conv2D(filters=16, kernel_size=5, activation="relu", kernel_regularizer="l2")(x)
         x = layers.Flatten()(x)
         x = layers.Concatenate()([latent_in, x])
-        x = layers.Dense(100, activation="relu", kernel_regularizer="l2")(x)
+        x = layers.Dense(64, activation="relu", kernel_regularizer="l2")(x)
+        x = layers.Dense(32, activation="relu", kernel_regularizer="l2")(x)
         label_out = layers.Dense(1, activation="sigmoid", name="label_output")(x)
         model = Model(inputs=[img_in, latent_in], outputs=[label_out], name="discriminator")
         model.compile(optimizer=opt, loss=["binary_crossentropy"], metrics=["acc"])

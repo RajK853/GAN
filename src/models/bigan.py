@@ -1,6 +1,5 @@
 import numpy as np
 from tensorflow.compat.v1.keras import layers, optimizers, Model, Input
-from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
 
 from . import BaseGAN
 
@@ -8,6 +7,7 @@ from . import BaseGAN
 class BiGAN(BaseGAN):
     def __init__(self, *args, **kwargs):
         super(BiGAN, self).__init__(*args, **kwargs)
+        self.progress_fmt = "Epoch: ({epoch}/{total_epoch}) | dis (loss, acc): ({dis_loss:.4f}, {dis_acc:.4f}) - gen loss: {gen_loss:.4f}"
         # Initialize inputs
         self.label_in = Input(shape=(1, ), name="label_input", dtype="int32")
         self.latent_in = Input(shape=(self.latent_size, ), name="latent_input", dtype="float32")
@@ -102,16 +102,3 @@ class BiGAN(BaseGAN):
     def process_gen_result(self, result):
         gen_loss, *_ = result
         return {"gen_loss": gen_loss}
-
-    def define_progress_bar(self):
-        step_text_fmt = (":: Epoch: [cyan]({task.fields[epoch]}/{task.fields[total_epoch]})[/cyan] :: dis (loss, acc): "
-                         "[cyan]({task.fields[dis_loss]:.3f}, {task.fields[dis_acc]:.3f})[/cyan] "
-                         ":: gen loss: [cyan]{task.fields[gen_loss]:.4f}[/cyan]")
-        self.p_bar = Progress(TextColumn("{task.description}"),
-                         BarColumn(complete_style="bold yellow", finished_style="bold cyan"),
-                         "[progress.percentage]{task.percentage:>3.2f}%",
-                         ":: Time left:",
-                         TimeRemainingColumn(),
-                         TextColumn(step_text_fmt),
-                         refresh_per_second=2)
-    

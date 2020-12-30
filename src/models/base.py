@@ -3,19 +3,20 @@ import numpy as np
 from time import time
 from datetime import datetime
 from collections import defaultdict
-from rich.console import Console
+from colorama import init, Fore, Back, Style
 from tensorflow.compat.v1.keras import callbacks, backend
+
+from src.progressbar import ProgressBar
 
 
 class BaseGAN:
-    def __init__(self, dataset, class_labels, img_shape, latent_size, log_prefix="log_", num_evaluates=10, console=None):
+    def __init__(self, dataset, class_labels, img_shape, latent_size, num_evaluates=10):
         self.dataset = dataset
         self.class_labels = class_labels
         self.dataset_size = dataset.shape[0]
         self.img_shape = img_shape
         self.latent_size = latent_size
         self.num_evaluates = num_evaluates
-        self.log_prefix = log_prefix
         self.history = defaultdict(list)
         # Init log directory
         current_time = datetime.now().strftime("%d.%m.%Y_%H.%M")
@@ -29,22 +30,11 @@ class BaseGAN:
         self.dis_model = None
         self.gen_model = None
         self.combined_mode = None
-        # Progress bar object reference
-        self.p_bar = None
         # Data sampler variables
         self.data_index = 0
         self.indexes = np.arange(self.dataset_size, dtype="uint32")
         self.shuffle_indexes()
-        # rich.Console object
-        self.console = console or Console()
-
         self._batch_feed_dict = {}
-
-    def define_progress_bar(self):
-        """
-        Init rich.progress.Progress object to display different field information based on different GAN algorithms
-        """
-        raise NotImplementedError
 
     def load_generator(self, **kwargs):
         raise NotImplementedError
@@ -107,30 +97,27 @@ class BaseGAN:
         for model in self.models:
             self.tensorboard_callback.set_model(model)
         train_per_epoch = np.math.ceil(self.dataset_size/batch_size)
-        self.define_progress_bar()
-        print()
-        self.console.rule(f"Training for [cyan]{epochs}[/cyan] epochs with [cyan]{train_per_epoch}[/cyan] iterations per epoch")
-        with self.p_bar:
-            task = self.p_bar.add_task(f" Training:", total=epochs*train_per_epoch, visible=False, total_epoch=epochs)
-            for epoch in range(1, epochs+1):
-                self.shuffle_indexes()
-                for batch_iter in range(train_per_epoch):
-                    log_dict = self.train_once(batch_size)
-                    # TODO: Implement code to log train results
-                    self.tensorboard_callback.on_train_batch_end(batch_iter, logs=log_dict)
-                    self.store_logs(log_dict)
-                    self.p_bar.update(task, advance=1, visible=True, refresh=True, epoch=epoch, **log_dict)
-                if (epoch == epochs) or (epoch%evaluate_interval == 0):
-                    self.save_images(epoch)
-        print()
-        self.console.rule("Saving logs and models")
+        batch_iter_progress = 1/train_per_epoch
+        p_bar = ProgressBar(total_iter=epochs*train_per_epoch, title=f"{Fore.CYAN}Training:{Style.RESET_ALL}", display_interval=10, info_text=self.progress_fmt)
+        print(f"Training {Fore.YELLOW}{self.__class__.__name__} {Style.RESET_ALL} for {Fore.CYAN}{epochs}{Style.RESET_ALL} epochs with {Fore.CYAN}{train_per_epoch}{Style.RESET_ALL} iterations per epoch")        
+        for epoch in range(1, epochs+1):
+            self.shuffle_indexes()
+            for batch_iter in range(train_per_epoch):
+                log_dict = self.train_once(batch_size)
+                # TODO: Implement code to log train results
+                self.tensorboard_callback.on_train_batch_end(batch_iter, logs=log_dict)
+                self.store_logs(log_dict)
+                p_bar.step(epoch=epoch, total_epoch=epochs, **log_dict)
+            if (epoch == epochs) or (epoch%evaluate_interval == 0):
+                self.save_images(epoch)
+        print("\nSaving logs and models")
         meta_data = {"epochs": epochs, "latent_size": self.latent_size, "batch_size": batch_size, "evaluate_interval": evaluate_interval}
         self.save_meta_data(meta_data)
         self.save_models()
         self.save_log()
         backend.clear_session()
         elapsed_time = (time() - start_time)/60
-        self.console.rule(f"Training finished in {elapsed_time:.1f} minutes")
+        print(f"\nTraining finished in {Fore.CYAN}{elapsed_time:.1f}{Style.RESET_ALL} minutes\n")
 
     def store_logs(self, log_dict):
         for k, v in log_dict.items():
@@ -154,14 +141,14 @@ class BaseGAN:
         os.makedirs(dump_path, exist_ok=True)
         for model in self.models:
             model.save(os.path.join(dump_path, f"{model.name}.h5"))
-        self.console.print(f"# Models saved in [cyan]'{dump_path}'[/cyan] directory.")
+        print(f"# Models saved in {Fore.CYAN}'{dump_path}'{Style.RESET_ALL} directory")
 
     def save_log(self):
         from pandas import DataFrame
         df = DataFrame.from_dict(self.history, dtype=np.float32)
         dump_path = os.path.join(self.log_dir, "history.csv")
         df.to_csv(dump_path, index=False)
-        self.console.print(f"# Training history saved to [cyan]'{dump_path}'[/cyan].")
+        print(f"# Training history saved to {Fore.CYAN}'{dump_path}'")
 
     def save_meta_data(self, data_dict):
         import json
@@ -169,4 +156,4 @@ class BaseGAN:
         dump_path = os.path.join(self.log_dir, "meta_data.json")
         with open(dump_path, "w") as outfile:
             json.dump(data_dict, outfile, indent=True)
-        self.console.print(f"# Meta data dumped to [cyan]'{dump_path}'[/cyan].")
+        print(f"# Meta data dumped to {Fore.CYAN}'{dump_path}'")

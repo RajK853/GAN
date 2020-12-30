@@ -1,6 +1,5 @@
 import numpy as np
 from tensorflow.compat.v1.keras import layers, optimizers, Model, Input
-from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
 
 from . import BaseGAN
 
@@ -8,12 +7,13 @@ from . import BaseGAN
 class GAN(BaseGAN):
     def __init__(self, *args, **kwargs):
         super(GAN, self).__init__(*args, **kwargs)
+        self.progress_fmt = "Epoch: ({epoch}/{total_epoch}) | dis (loss, acc): ({dis_loss:.4f}, {dis_acc:.4f}) - gen loss: {gen_loss:.4f}"
         # Initialize inputs
         self.latent_in = Input(shape=(self.latent_size, ), name="latent_input", dtype="float32")
         self.img_in = Input(shape=self.img_shape, name="image_input", dtype="float32")
         # Initialize optimizers
-        dis_opt = optimizers.Adam(learning_rate=3e-4, beta_1=0.5, name="discriminator_opt")
-        combined_opt = optimizers.Adam(learning_rate=3e-4, beta_1=0.5, name="combined_opt")
+        dis_opt = optimizers.Adam(learning_rate=3e-3, beta_1=0.5, name="discriminator_opt")
+        combined_opt = optimizers.Adam(learning_rate=3e-3, beta_1=0.5, name="combined_opt")
         # Load models
         self.gen_model = self.load_generator(self.latent_in)
         self.dis_model = self.load_discriminator(self.img_in, dis_opt)
@@ -21,18 +21,22 @@ class GAN(BaseGAN):
         self.models = [self.gen_model, self.dis_model, self.combined_model]
 
     def load_generator(self, latent_in):
-        x = layers.Dense(7*7*64, activation="relu", kernel_regularizer="l2")(latent_in)
+        x = layers.Dense(7*7*64, use_bias=False, kernel_regularizer="l2")(latent_in)
+        x = layers.BatchNormalization()(x)
+        x = layers.ReLU()(x)
         x = layers.Reshape((7, 7, 64))(x)
-        x = layers.Conv2D(filters=64, kernel_size=3, activation="relu", padding="same", kernel_regularizer="l2")(x)
+        x = layers.Conv2D(filters=64, kernel_size=3, use_bias=False, padding="same", kernel_regularizer="l2")(x)
         x = layers.UpSampling2D()(x)
-        x = layers.Conv2DTranspose(filters=32, kernel_size=5, activation="relu", padding="same", kernel_regularizer="l2")(x)
+        x = layers.Conv2DTranspose(filters=32, kernel_size=5, use_bias=False, padding="same", kernel_regularizer="l2")(x)
         x = layers.UpSampling2D()(x)
         img_out = layers.Conv2D(filters=1, kernel_size=3, padding="same", activation="sigmoid", name="image_output")(x)
         model = Model(inputs=[latent_in], outputs=[img_out], name="generator")
         return model
     
     def load_discriminator(self, img_in, opt="adam"):
-        x = layers.Conv2D(filters=32, kernel_size=3, activation="relu", kernel_regularizer="l2")(img_in)
+        x = layers.Conv2D(filters=32, kernel_size=3, use_bias=False, kernel_regularizer="l2")(img_in)
+        x = layers.BatchNormalization()(x)
+        x = layers.ReLU()(x)
         x = layers.Conv2D(filters=64, kernel_size=5, activation="relu", kernel_regularizer="l2")(x)
         x = layers.Flatten()(x)
         x = layers.Dense(100, activation="relu", kernel_regularizer="l2")(x)
@@ -83,15 +87,3 @@ class GAN(BaseGAN):
 
     def process_gen_result(self, result):
         return {"gen_loss": result}
-
-    def define_progress_bar(self):
-        # In the task.fields[var], a valid var string value is obtained as a kwarg from one of the given methods calls: p_bar.add_task() & p_bar.update()  
-        step_text_fmt = (":: Epoch: [cyan]({task.fields[epoch]}/{task.fields[total_epoch]})[/cyan] :: dis (loss, acc): [cyan]({task.fields[dis_loss]:.4f}, {task.fields[dis_acc]:.4f})[/cyan] "
-                         ":: gen loss: [cyan]{task.fields[gen_loss]:.4f}[/cyan]")
-        self.p_bar = Progress(TextColumn("{task.description}"),
-                         BarColumn(complete_style="bold yellow", finished_style="bold cyan"),
-                         "[progress.percentage]{task.percentage:>3.2f}%",
-                         ":: Time left:",
-                         TimeRemainingColumn(),
-                         TextColumn(step_text_fmt),
-                         auto_refresh=False)

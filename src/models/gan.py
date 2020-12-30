@@ -12,8 +12,8 @@ class GAN(BaseGAN):
         self.latent_in = Input(shape=(self.latent_size, ), name="latent_input", dtype="float32")
         self.img_in = Input(shape=self.img_shape, name="image_input", dtype="float32")
         # Initialize optimizers
-        dis_opt = optimizers.Adam(learning_rate=3e-3, beta_1=0.5, name="discriminator_opt")
-        combined_opt = optimizers.Adam(learning_rate=3e-3, beta_1=0.5, name="combined_opt")
+        dis_opt = optimizers.Adam(learning_rate=3e-4, beta_1=0.5, name="discriminator_opt")
+        combined_opt = optimizers.Adam(learning_rate=3e-4, beta_1=0.5, name="combined_opt")
         # Load models
         self.gen_model = self.load_generator(self.latent_in)
         self.dis_model = self.load_discriminator(self.img_in, dis_opt)
@@ -21,13 +21,13 @@ class GAN(BaseGAN):
         self.models = [self.gen_model, self.dis_model, self.combined_model]
 
     def load_generator(self, latent_in):
-        x = layers.Dense(7*7*64, use_bias=False, kernel_regularizer="l2")(latent_in)
+        x = layers.Dense(7*7*16, use_bias=False, kernel_regularizer="l2")(latent_in)
         x = layers.BatchNormalization()(x)
         x = layers.ReLU()(x)
-        x = layers.Reshape((7, 7, 64))(x)
-        x = layers.Conv2D(filters=64, kernel_size=3, use_bias=False, padding="same", kernel_regularizer="l2")(x)
+        x = layers.Reshape((7, 7, 16))(x)
+        x = layers.Conv2D(filters=16, kernel_size=5, activation="relu", padding="same", kernel_regularizer="l2")(x)
         x = layers.UpSampling2D()(x)
-        x = layers.Conv2DTranspose(filters=32, kernel_size=5, use_bias=False, padding="same", kernel_regularizer="l2")(x)
+        x = layers.Conv2D(filters=32, kernel_size=3, activation="relu", padding="same", kernel_regularizer="l2")(x)
         x = layers.UpSampling2D()(x)
         img_out = layers.Conv2D(filters=1, kernel_size=3, padding="same", activation="sigmoid", name="image_output")(x)
         model = Model(inputs=[latent_in], outputs=[img_out], name="generator")
@@ -37,9 +37,8 @@ class GAN(BaseGAN):
         x = layers.Conv2D(filters=32, kernel_size=3, use_bias=False, kernel_regularizer="l2")(img_in)
         x = layers.BatchNormalization()(x)
         x = layers.ReLU()(x)
-        x = layers.Conv2D(filters=64, kernel_size=5, activation="relu", kernel_regularizer="l2")(x)
+        x = layers.Conv2D(filters=16, kernel_size=5, activation="relu", kernel_regularizer="l2")(x)
         x = layers.Flatten()(x)
-        x = layers.Dense(100, activation="relu", kernel_regularizer="l2")(x)
         x = layers.Dense(100, activation="relu", kernel_regularizer="l2")(x)
         label_out = layers.Dense(1, activation="sigmoid", name="binary_prob_output")(x)
         model = Model(inputs=[img_in], outputs=[label_out], name="discriminator")

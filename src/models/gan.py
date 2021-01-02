@@ -12,8 +12,8 @@ class GAN(BaseGAN):
         self.latent_in = Input(shape=(self.latent_size, ), name="latent_input", dtype="float32")
         self.img_in = Input(shape=self.img_shape, name="image_input", dtype="float32")
         # Initialize optimizers
-        dis_opt = optimizers.Adam(learning_rate=3e-4, beta_1=0.5, name="discriminator_opt")
-        combined_opt = optimizers.Adam(learning_rate=3e-4, beta_1=0.5, name="combined_opt")
+        dis_opt = optimizers.Adam(learning_rate=self.learning_rate, beta_1=0.5, name="discriminator_opt")
+        combined_opt = optimizers.Adam(learning_rate=self.learning_rate, beta_1=0.5, name="combined_opt")
         # Load models
         self.gen_model = self.load_generator(self.latent_in)
         self.dis_model = self.load_discriminator(self.img_in, dis_opt)
@@ -21,21 +21,27 @@ class GAN(BaseGAN):
         self.models = [self.gen_model, self.dis_model, self.combined_model]
 
     def load_generator(self, latent_in):
-        x = layers.Dense(7*7*16, activation="relu", kernel_regularizer="l2")(latent_in)
-        x = layers.Reshape((7, 7, 16))(x)
-        x = layers.Conv2D(filters=16, kernel_size=5, activation="relu", padding="same", kernel_regularizer="l2")(x)
+        x = layers.Dense(64, kernel_regularizer="l2")(latent_in)
+        x = layers.BatchNormalization()(x)
+        x = layers.ReLU()(x)
+        x = layers.Dense(7*7*4, activation="relu", kernel_regularizer="l2")(x)
+        x = layers.Reshape((7, 7, 4))(x)
+        x = layers.Conv2D(filters=4, kernel_size=3, activation="relu", padding="same", kernel_regularizer="l2")(x)
         x = layers.UpSampling2D()(x)
-        x = layers.Conv2D(filters=32, kernel_size=3, activation="relu", padding="same", kernel_regularizer="l2")(x)
+        x = layers.Conv2D(filters=4, kernel_size=3, activation="relu", padding="same", kernel_regularizer="l2")(x)
         x = layers.UpSampling2D()(x)
-        img_out = layers.Conv2D(filters=1, kernel_size=3, padding="same", activation="sigmoid", name="image_output")(x)
+        img_out = layers.Conv2D(filters=1, kernel_size=5, padding="same", activation="sigmoid", name="image_output")(x)
         model = Model(inputs=[latent_in], outputs=[img_out], name="generator")
         return model
     
     def load_discriminator(self, img_in, opt="adam"):
-        x = layers.Conv2D(filters=32, kernel_size=3, activation="relu", kernel_regularizer="l2")(img_in)
-        x = layers.Conv2D(filters=16, kernel_size=5, activation="relu", kernel_regularizer="l2")(x)
+        x = layers.Conv2D(filters=8, kernel_size=3, kernel_regularizer="l2")(img_in)
+        x = layers.MaxPool2D()(x)
+        x = layers.ReLU()(x)
+        x = layers.Conv2D(filters=16, kernel_size=3, activation="relu", kernel_regularizer="l2")(x)
         x = layers.Flatten()(x)
         x = layers.Dense(64, activation="relu", kernel_regularizer="l2")(x)
+        x = layers.Dropout(0.4)(x)
         x = layers.Dense(32, activation="relu", kernel_regularizer="l2")(x)
         label_out = layers.Dense(1, activation="sigmoid", name="binary_prob_output")(x)
         model = Model(inputs=[img_in], outputs=[label_out], name="discriminator")
@@ -44,7 +50,7 @@ class GAN(BaseGAN):
 
     def load_combined_model(self, latent_in, opt="adam"):
         self.dis_model.trainable = False
-        img_out = self.gen_model.output
+        img_out = self.gen_model(latent_in)
         label_out = self.dis_model(img_out)
         model = Model(inputs=[latent_in], outputs=[label_out], name="combined")
         model.compile(optimizer=opt, loss="binary_crossentropy")

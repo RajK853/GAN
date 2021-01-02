@@ -4,21 +4,24 @@ from time import time
 from datetime import datetime
 from collections import defaultdict
 from colorama import init, Fore, Back, Style
+import tensorflow.compat.v1 as tf_v1
 from tensorflow.compat.v1.keras import callbacks, backend
 
 from src.progressbar import ProgressBar
 
 
 class BaseGAN:
-    def __init__(self, dataset, class_labels, img_shape, latent_size, num_evaluates=10):
+    def __init__(self, dataset, class_labels, img_shape, latent_size, learning_rate=1e-3,  num_evaluates=10):
         self.dataset = dataset
         self.class_labels = class_labels
         self.dataset_size = dataset.shape[0]
         self.img_shape = img_shape
         self.latent_size = latent_size
+        self.learning_rate = learning_rate
         self.num_evaluates = num_evaluates
         self.history = defaultdict(list)
         # Init log directory
+        self.scope = self.__class__.__name__
         current_time = datetime.now().strftime("%d.%m.%Y_%H.%M")
         self.log_dir = os.path.join("logs", f"{self.__class__.__name__}_{current_time}")
         self.img_log_path = os.path.join(self.log_dir, "images")
@@ -69,7 +72,7 @@ class BaseGAN:
         np.random.shuffle(self.indexes)
         
     def sample_latent(self, batch_size):
-        latent = np.random.randn(batch_size, self.latent_size)
+        latent = np.random.normal(loc=0.0, scale=1/3, size=(batch_size, self.latent_size))
         return latent
 
     def increment_index(self, batch_size):
@@ -101,25 +104,33 @@ class BaseGAN:
         train_per_epoch = np.math.ceil(self.dataset_size/batch_size)
         batch_iter_progress = 1/train_per_epoch
         p_bar = ProgressBar(total_iter=epochs*train_per_epoch, title=f"{Fore.CYAN}Training:{Style.RESET_ALL}", display_interval=10, info_text=self.progress_fmt)
-        print(f"Training {Fore.YELLOW}{self.__class__.__name__} {Style.RESET_ALL} for {Fore.CYAN}{epochs}{Style.RESET_ALL} epochs with {Fore.CYAN}{train_per_epoch}{Style.RESET_ALL} iterations per epoch")        
+        print(f"Training {Fore.YELLOW}{self.__class__.__name__}{Style.RESET_ALL} for {Fore.CYAN}{epochs}{Style.RESET_ALL} epochs with {Fore.CYAN}{train_per_epoch}{Style.RESET_ALL} iterations per epoch")        
         for epoch in range(1, epochs+1):
             self.shuffle_indexes()
             for batch_iter in range(train_per_epoch):
                 log_dict = self.train_once(batch_size)
-                # TODO: Implement code to log train results
-                self.tensorboard_callback.on_train_batch_end(batch_iter, logs=log_dict)
                 self.store_logs(log_dict)
                 p_bar.step(epoch=epoch, total_epoch=epochs, **log_dict)
+            log_dict = {key:np.mean(values) for key, values in self.history.items()}
+            self.log(log_dict, step_num=epoch)
+            self.history.clear()
             if (epoch == epochs) or (epoch%evaluate_interval == 0):
                 self.save_images(epoch)
         print("\nSaving logs and models")
         meta_data = {"epochs": epochs, "latent_size": self.latent_size, "batch_size": batch_size, "evaluate_interval": evaluate_interval}
         self.save_meta_data(meta_data)
         self.save_models()
-        self.save_log()
+        # self.save_log()
         backend.clear_session()
         elapsed_time = (time() - start_time)/60
         print(f"\nTraining finished in {Fore.CYAN}{elapsed_time:.1f}{Style.RESET_ALL} minutes\n")
+
+    def log(self, log_dict, step_num):
+        callback_writer = self.tensorboard_callback.writer
+        for name, value in log_dict.items():
+            summary = tf_v1.Summary(value=[tf_v1.Summary.Value(tag=f"{self.scope}/{name}", simple_value=value)])
+            callback_writer.add_summary(summary, step_num)
+        callback_writer.flush()
 
     def store_logs(self, log_dict):
         for k, v in log_dict.items():

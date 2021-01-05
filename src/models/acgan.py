@@ -2,12 +2,14 @@ import numpy as np
 from tensorflow.compat.v1.keras import layers, optimizers, Model, Input
 
 from . import BaseGAN
+from .. import networks
 
 
 class ACGAN(BaseGAN):
     def __init__(self, *args, **kwargs):
         super(ACGAN, self).__init__(*args, **kwargs)
-        self.progress_fmt = ("Epoch: ({epoch}/{total_epoch}) | dis (loss, acc, label_acc): ({dis_loss:.3f}, {dis_acc:.3f}, {dis_label_acc:.3f}) | gen loss: {gen_loss:.4f}")
+        self.progress_fmt = ("Epoch: ({epoch}/{total_epoch}) | dis (loss, acc, label_acc): "
+                             "({dis_loss:.3f}, {dis_acc:.3f}, {dis_label_acc:.3f}) | gen loss: {gen_loss:.4f}")
         self.num_classes = len(set(self.class_labels.squeeze()))
         # Initialize inputs
         self.label_in = Input(shape=(1, ), name="label_input", dtype="int32")
@@ -36,19 +38,18 @@ class ACGAN(BaseGAN):
         x = layers.UpSampling2D()(x)
         x = layers.Conv2D(filters=4, kernel_size=3, activation="relu", padding="same", kernel_regularizer="l2")(x)
         x = layers.UpSampling2D()(x)
-        img = layers.Conv2D(filters=1, kernel_size=3, padding="same", activation="sigmoid", name="gen_image_output")(x)
+        img = layers.Conv2D(filters=1, kernel_size=5, padding="same", activation="sigmoid", name="gen_image_output")(x)
         model = Model(inputs=[latent_in, label_in], outputs=[img], name="generator")
         return model
     
     def load_discriminator(self, img_in, opt="adam"):
-        x = layers.Conv2D(filters=8, kernel_size=3, kernel_regularizer="l2")(img_in)
-        x = layers.MaxPool2D()(x)
-        x = layers.ReLU()(x)
-        x = layers.Conv2D(filters=16, kernel_size=3, activation="relu", kernel_regularizer="l2")(x)
+        layer_sizes = [60]*2
+        x = layers.Conv2D(filters=8, kernel_size=5)(img_in)
+        x = layers.MaxPool2D(pool_size=3)(x)
+        x = layers.Conv2D(filters=8, kernel_size=3)(x)
         x = layers.Flatten()(x)
-        x = layers.Dense(64, activation="relu", kernel_regularizer="l2")(x)
-        x = layers.Dropout(0.4)(x)
-        x = layers.Dense(32, activation="relu", kernel_regularizer="l2")(x)
+        x = networks.concat_dense(x, layer_sizes, activation="relu", dropout_rate=0.2)
+        x = layers.Dense(0.5*sum(layer_sizes), activation="relu", kernel_regularizer="l2")(x)
         label_out = layers.Dense(1, activation="sigmoid", name="label_output")(x)
         class_out = layers.Dense(self.num_classes, activation="softmax", name="class_output")(x)
         model = Model(inputs=[img_in], outputs=[label_out, class_out], name="discriminator")

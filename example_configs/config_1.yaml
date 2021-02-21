@@ -1,0 +1,19 @@
+default: &default_config
+  epochs: 10
+  latent_size: 50
+  batch_size: 128
+  evaluate_interval: 5
+  lr: 0.0003
+  num_evaluates: 10
+
+GAN:
+  <<: *default_config
+  model: GAN
+
+ACGAN:
+  <<: *default_config
+  model: ACGAN
+
+BiGAN:
+  <<: *default_config
+  model: BiGAN

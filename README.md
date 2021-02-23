@@ -32,17 +32,9 @@ Implementation of normal *Bidirectional Generative Adversarial Network*.
 
 ### Example:
 
-**Train a model**
+**Train models**
 
-```shell
-python gan.py train ACGAN --epochs=100 --batch-size=128
-```
-The above command will train `ACGAN` model for 100 **epochs** with a **batch size** of 128.
-> Use `--help` command to list out all the possible parameters.
-
-**Train models via YAML config file**
-
-1. Create a YAML config file (let's say `example_configs/config_1.yaml`) as:
+1. Create a YAML config file (let's say `config_1.yaml`) as:
 ```yaml  
 default: &default_config
   epochs: 1000
@@ -73,7 +65,8 @@ BiGAN:
 
 2. Train the models by loading the parameters from the above YAML config file as:
 ```shell
-python gan.py from-yaml example_configs/config_1.yaml
+python train.py config_1.yaml
 ```
 The above config file will train `GAN`, `ACGAN` and `BiGAN` models with two different `latent_size` values for the `GAN` model only.  
 >  Any configuration with the key name with the prefix `default` will not be executed by default.
+>  Feedforward layer configurations can be passed via `layer_configs` argument. Please look in `example_configs` directory for the sample YAML configuration file. 

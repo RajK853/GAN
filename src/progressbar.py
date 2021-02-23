@@ -30,7 +30,7 @@ class ProgressBar:
         self.info_text = info_text
         self._current_iter = 0
         self._progress_ratio = 0.0
-        self.dt_queue = deque(maxlen=20)
+        self.dt_queue = deque(maxlen=30)
         self._last_time = time()
         self._time_left_min = 0
         self._time_left_sec = 0

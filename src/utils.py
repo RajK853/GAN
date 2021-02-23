@@ -1,4 +1,5 @@
 import yaml
+import copy
 import numpy as np
 
 
@@ -61,3 +62,19 @@ def exec_from_yaml(config_path, exec_func, title="Experiment", safe_load=True, i
         result_dict[exp_name] = result
         i += 1
     return result_dict
+
+def create_feedforward_network(input_tensor, layers):
+    """
+    Creates a feedforward network by passing given input tensor through all the layers
+    :param input_tensor: (tensor) Input tensor to pass through the layers
+    :param layers: (list) List of layer info as dicts in given format: [{"type": "Conv2D", "filters": 32, "kernel_size": 3, "activation": "relu"},..,{"type": "Dense", "units": 100, "activation": "relu"}]
+    :returns: (tensor) Output tensor of the last layer
+    """
+    from tensorflow.compat.v1.keras import layers as keras_layers
+    x = input_tensor
+    _layers = copy.deepcopy(layers)
+    for layer_dict in _layers:
+        layer_type = layer_dict.pop("type")
+        layer_class = getattr(keras_layers, layer_type)
+        x = layer_class(**layer_dict)(x)
+    return x

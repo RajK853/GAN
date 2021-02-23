@@ -69,4 +69,5 @@ python train.py config_1.yaml
 ```
 The above config file will train `GAN`, `ACGAN` and `BiGAN` models with two different `latent_size` values for the `GAN` model only.  
 >  Any configuration with the key name with the prefix `default` will not be executed by default.  
+
 >  Feedforward layer configurations can be passed via `layer_configs` argument. Please look in `example_configs` directory for the sample YAML configuration file. 

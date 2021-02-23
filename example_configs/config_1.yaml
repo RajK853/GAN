@@ -1,10 +1,29 @@
 default: &default_config
-  epochs: 10
-  latent_size: 50
+  # Model train arguments
+  epochs: 200
   batch_size: 128
-  evaluate_interval: 5
-  lr: 0.0003
+  evaluate_interval: 10
+  # Model init arguments
+  latent_size: 100
+  lr: 0.0001
   num_evaluates: 10
+  layer_configs:
+    generator: &default_gen_config
+      - {type: Dense, units: 64, activation: relu, kernel_regularizer: null}
+      - {type: Dense, units: 196, activation: relu, kernel_regularizer: null}
+      - {type: Reshape, target_shape: [7, 7, 4]}
+      - {type: Conv2D, filters: 32, kernel_size: 3, padding: same, activation: relu, kernel_regularizer: null}
+      - {type: UpSampling2D}
+      - {type: Conv2D, filters: 32, kernel_size: 3, padding: same, activation: relu, kernel_regularizer: null}
+      - {type: UpSampling2D}
+    discriminator: &default_dis_config
+      - {type: Conv2D, filters: 32, kernel_size: 3, activation: relu, kernel_regularizer: l2}
+      - {type: MaxPool2D}
+      - {type: Conv2D, filters: 32, kernel_size: 3, activation: relu, kernel_regularizer: l2}
+      - {type: Flatten}
+      - {type: Dense, units: 64, activation: relu, kernel_regularizer: l2}
+      - {type: Dropout, rate: 0.4}
+      - {type: Dense, units: 32, activation: relu, kernel_regularizer: l2}
 
 GAN:
   <<: *default_config
@@ -17,3 +36,10 @@ ACGAN:
 BiGAN:
   <<: *default_config
   model: BiGAN
+  layer_configs:
+    generator: *default_gen_config
+    encoder: *default_dis_config
+    discriminator:
+      - {type: Dense, units: 64, activation: relu, kernel_regularizer: l2}
+      - {type: Dropout, rate: 0.4}
+      - {type: Dense, units: 32, activation: relu, kernel_regularizer: l2}

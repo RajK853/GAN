@@ -2,7 +2,8 @@ import numpy as np
 from tensorflow.compat.v1.keras import layers, optimizers, Model, Input
 
 from . import BaseGAN
-from .. import networks
+from .base import DEFAULT_CONFIGS
+from ..utils import create_feedforward_network
 
 
 class ACGAN(BaseGAN):
@@ -16,8 +17,8 @@ class ACGAN(BaseGAN):
         self.latent_in = Input(shape=(self.latent_size, ), name="latent_input", dtype="float32")
         self.img_in = Input(shape=self.img_shape, name="image_input", dtype="float32")
         # Initialize optimizers
-        dis_opt = optimizers.Adam(learning_rate=self.learning_rate, beta_1=0.5, name="discriminator_opt")
-        combined_opt = optimizers.Adam(learning_rate=self.learning_rate, beta_1=0.5, name="combined_opt")
+        dis_opt = optimizers.Adam(learning_rate=self.lr, beta_1=0.5, name="discriminator_opt")
+        combined_opt = optimizers.Adam(learning_rate=self.lr, beta_1=0.5, name="combined_opt")
         # Load models
         self.gen_model = self.load_generator(self.latent_in, self.label_in)
         self.dis_model = self.load_discriminator(self.img_in, opt=dis_opt)
@@ -25,31 +26,25 @@ class ACGAN(BaseGAN):
         self.models = [self.gen_model, self.dis_model, self.combined_model]
 
     def load_generator(self, latent_in, label_in):
+        layer_config = self.layer_configs.get("generator", None)
+        if layer_config is None:
+            layer_config = DEFAULT_CONFIGS["generator"]
+            print("Loading default generator network!")
         # Embedd given label into given matrix
         ex = layers.Embedding(self.num_classes, self.latent_size)(label_in)
         ex = layers.Flatten()(ex)
         x = layers.Multiply()([latent_in, ex])                             # Combine embedded label and latent vectors
-        x = layers.Dense(32, kernel_regularizer="l2")(x)
-        x = layers.BatchNormalization()(x)
-        x = layers.ReLU()(x)
-        x = layers.Dense(7*7*4, activation="relu", kernel_regularizer="l2")(x)
-        x = layers.Reshape((7, 7, 4))(x)
-        x = layers.Conv2D(filters=4, kernel_size=3, activation="relu", padding="same", kernel_regularizer="l2")(x)
-        x = layers.UpSampling2D()(x)
-        x = layers.Conv2D(filters=4, kernel_size=3, activation="relu", padding="same", kernel_regularizer="l2")(x)
-        x = layers.UpSampling2D()(x)
+        x = create_feedforward_network(x, layers=layer_config)
         img = layers.Conv2D(filters=1, kernel_size=5, padding="same", activation="sigmoid", name="gen_image_output")(x)
         model = Model(inputs=[latent_in, label_in], outputs=[img], name="generator")
         return model
     
     def load_discriminator(self, img_in, opt="adam"):
-        layer_sizes = [60]*2
-        x = layers.Conv2D(filters=8, kernel_size=5)(img_in)
-        x = layers.MaxPool2D(pool_size=3)(x)
-        x = layers.Conv2D(filters=8, kernel_size=3)(x)
-        x = layers.Flatten()(x)
-        x = networks.concat_dense(x, layer_sizes, activation="relu", dropout_rate=0.2)
-        x = layers.Dense(0.5*sum(layer_sizes), activation="relu", kernel_regularizer="l2")(x)
+        layer_config = self.layer_configs.get("discriminator", None)
+        if layer_config is None:
+            layer_config = DEFAULT_CONFIGS["discriminator"]
+            print("Loading default discriminator network!")
+        x = create_feedforward_network(img_in, layers=layer_config)
         label_out = layers.Dense(1, activation="sigmoid", name="label_output")(x)
         class_out = layers.Dense(self.num_classes, activation="softmax", name="class_output")(x)
         model = Model(inputs=[img_in], outputs=[label_out, class_out], name="discriminator")

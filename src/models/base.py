@@ -10,15 +10,38 @@ from tensorflow.compat.v1.keras import callbacks, backend
 from src.progressbar import ProgressBar
 
 
+DEFAULT_CONFIGS = {
+    "generator": [
+        {"type": "Dense", "units": 64, "activation": "relu", "kernel_regularizer": "l2"},
+        {"type": "Dense", "units": 7*7*4, "activation": "relu", "kernel_regularizer": "l2"},
+        {"type": "Reshape", "target_shape": (7, 7, 4)},
+        {"type": "Conv2D", "filters": 4, "kernel_size": 3, "padding": "same", "activation": "relu", "kernel_regularizer": "l2"},
+        {"type": "UpSampling2D"},
+        {"type": "Conv2D", "filters": 4, "kernel_size": 3, "padding": "same", "activation": "relu", "kernel_regularizer": "l2"},
+        { "type": "UpSampling2D"}
+    ],
+    "discriminator": [
+        {"type": "Conv2D", "filters": 8, "kernel_size": 3, "activation": "relu", "kernel_regularizer": "l2"},
+        {"type": "MaxPool2D"},
+        {"type": "Conv2D", "filters": 16, "kernel_size": 3, "activation": "relu", "kernel_regularizer": "l2"},
+        {"type": "Flatten"},
+        {"type": "Dense", "units": 64, "activation": "relu", "kernel_regularizer": "l2"},
+        {"type": "Dropout", "rate": 0.4},
+        {"type": "Dense", "units": 32, "activation": "relu", "kernel_regularizer": "l2"}
+    ]
+}
+
+
 class BaseGAN:
-    def __init__(self, dataset, class_labels, img_shape, latent_size, learning_rate=1e-3,  num_evaluates=10):
+    def __init__(self, dataset, class_labels, img_shape, latent_size=50, lr=1e-3, num_evaluates=10, layer_configs={}):
         self.dataset = dataset
         self.class_labels = class_labels
         self.dataset_size = dataset.shape[0]
         self.img_shape = img_shape
         self.latent_size = latent_size
-        self.learning_rate = learning_rate
+        self.lr = lr
         self.num_evaluates = num_evaluates
+        self.layer_configs = layer_configs
         self.history = defaultdict(list)
         # Init log directory
         self.scope = self.__class__.__name__
@@ -123,7 +146,7 @@ class BaseGAN:
         # self.save_log()
         backend.clear_session()
         elapsed_time = (time() - start_time)/60
-        print(f"\nTraining finished in {Fore.CYAN}{elapsed_time:.1f}{Style.RESET_ALL} minutes\n")
+        print(f"\nTraining finished in {Fore.CYAN}{elapsed_time:.1f}{Style.RESET_ALL} minutes")
 
     def log(self, log_dict, step_num):
         callback_writer = self.tensorboard_callback.writer

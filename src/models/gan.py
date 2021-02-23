@@ -2,7 +2,8 @@ import numpy as np
 from tensorflow.compat.v1.keras import layers, optimizers, Model, Input
 
 from . import BaseGAN
-
+from .base import DEFAULT_CONFIGS
+from ..utils import create_feedforward_network
 
 class GAN(BaseGAN):
     def __init__(self, *args, **kwargs):
@@ -12,8 +13,8 @@ class GAN(BaseGAN):
         self.latent_in = Input(shape=(self.latent_size, ), name="latent_input", dtype="float32")
         self.img_in = Input(shape=self.img_shape, name="image_input", dtype="float32")
         # Initialize optimizers
-        dis_opt = optimizers.Adam(learning_rate=self.learning_rate, beta_1=0.5, name="discriminator_opt")
-        combined_opt = optimizers.Adam(learning_rate=self.learning_rate, beta_1=0.5, name="combined_opt")
+        dis_opt = optimizers.Adam(learning_rate=self.lr, beta_1=0.5, name="discriminator_opt")
+        combined_opt = optimizers.Adam(learning_rate=self.lr, beta_1=0.5, name="combined_opt")
         # Load models
         self.gen_model = self.load_generator(self.latent_in)
         self.dis_model = self.load_discriminator(self.img_in, dis_opt)
@@ -21,28 +22,21 @@ class GAN(BaseGAN):
         self.models = [self.gen_model, self.dis_model, self.combined_model]
 
     def load_generator(self, latent_in):
-        x = layers.Dense(64, kernel_regularizer="l2")(latent_in)
-        x = layers.BatchNormalization()(x)
-        x = layers.ReLU()(x)
-        x = layers.Dense(7*7*4, activation="relu", kernel_regularizer="l2")(x)
-        x = layers.Reshape((7, 7, 4))(x)
-        x = layers.Conv2D(filters=4, kernel_size=3, activation="relu", padding="same", kernel_regularizer="l2")(x)
-        x = layers.UpSampling2D()(x)
-        x = layers.Conv2D(filters=4, kernel_size=3, activation="relu", padding="same", kernel_regularizer="l2")(x)
-        x = layers.UpSampling2D()(x)
+        layer_config = self.layer_configs.get("generator", None)
+        if layer_config is None:
+            layer_config = DEFAULT_CONFIGS["generator"]
+            print("Loading default generator network!")
+        x = create_feedforward_network(latent_in, layers=layer_config)
         img_out = layers.Conv2D(filters=1, kernel_size=5, padding="same", activation="sigmoid", name="image_output")(x)
         model = Model(inputs=[latent_in], outputs=[img_out], name="generator")
         return model
     
     def load_discriminator(self, img_in, opt="adam"):
-        x = layers.Conv2D(filters=8, kernel_size=3, kernel_regularizer="l2")(img_in)
-        x = layers.MaxPool2D()(x)
-        x = layers.ReLU()(x)
-        x = layers.Conv2D(filters=16, kernel_size=3, activation="relu", kernel_regularizer="l2")(x)
-        x = layers.Flatten()(x)
-        x = layers.Dense(64, activation="relu", kernel_regularizer="l2")(x)
-        x = layers.Dropout(0.4)(x)
-        x = layers.Dense(32, activation="relu", kernel_regularizer="l2")(x)
+        layer_config = self.layer_configs.get("discriminator", None)
+        if layer_config is None:
+            layer_config = DEFAULT_CONFIGS["discriminator"]
+            print("Loading default discriminator network!")
+        x = create_feedforward_network(img_in, layers=layer_config)
         label_out = layers.Dense(1, activation="sigmoid", name="binary_prob_output")(x)
         model = Model(inputs=[img_in], outputs=[label_out], name="discriminator")
         model.compile(optimizer=opt, loss="binary_crossentropy", metrics=["acc"])
